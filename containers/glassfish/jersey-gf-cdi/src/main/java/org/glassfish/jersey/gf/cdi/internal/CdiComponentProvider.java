@@ -56,7 +56,6 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Application;
 import javax.ws.rs.ext.ExceptionMapper;
 
@@ -83,19 +82,13 @@ import javax.enterprise.inject.spi.InjectionPoint;
 import javax.enterprise.inject.spi.InjectionTarget;
 import javax.enterprise.inject.spi.ProcessInjectionTarget;
 import javax.enterprise.util.AnnotationLiteral;
-import javax.inject.Inject;
 import javax.inject.Qualifier;
 import javax.inject.Singleton;
-import javax.interceptor.AroundInvoke;
-import javax.interceptor.Interceptor;
-import javax.interceptor.InvocationContext;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
-import javax.transaction.Transactional;
 
 import org.glassfish.jersey.internal.inject.Injections;
 import org.glassfish.jersey.internal.inject.Providers;
-import org.glassfish.jersey.server.ContainerRequest;
 import org.glassfish.jersey.server.model.Parameter;
 import org.glassfish.jersey.server.model.Resource;
 import org.glassfish.jersey.server.spi.ComponentProvider;
@@ -394,42 +387,13 @@ public class CdiComponentProvider implements ComponentProvider, Extension {
 
     @SuppressWarnings("unused")
     private void afterTypeDiscovery(@Observes final AfterTypeDiscovery afterTypeDiscovery) {
-        final List<Class<?>> interceptors = afterTypeDiscovery.getInterceptors();
-        interceptors.add(WebApplicationExceptionPreservingInterceptor.class);
     }
 
     @SuppressWarnings("unused")
     private void beforeBeanDiscovery(@Observes final BeforeBeanDiscovery beforeBeanDiscovery, final BeanManager beanManager) {
         beforeBeanDiscovery.addAnnotatedType(beanManager.createAnnotatedType(JaxRsParamProducer.class));
-        beforeBeanDiscovery.addAnnotatedType(beanManager.createAnnotatedType(WebApplicationExceptionPreservingInterceptor.class));
     }
 
-    /**
-     * Transactional interceptor to help retain {@link WebApplicationException}
-     * thrown by transactional beans.
-     */
-    @Priority(Interceptor.Priority.PLATFORM_BEFORE + 199)
-    @Interceptor
-    @Transactional
-    public static final class WebApplicationExceptionPreservingInterceptor {
-
-        @Inject
-        BeanManager beanManager;
-
-        @AroundInvoke
-        public Object intercept(final InvocationContext ic) throws Exception {
-            try {
-                return ic.proceed();
-            } catch (final WebApplicationException wae) {
-                final CdiComponentProvider extension = beanManager.getExtension(CdiComponentProvider.class);
-                final ContainerRequest jerseyRequest = extension.locator.getService(ContainerRequest.class);
-                if (jerseyRequest != null) {
-                    jerseyRequest.setProperty(TRANSACTIONAL_WAE, wae);
-                }
-                throw wae;
-            }
-        }
-    }
 
     @SuppressWarnings("unused")
     private void processInjectionTarget(@Observes final ProcessInjectionTarget event) {
